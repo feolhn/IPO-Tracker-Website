@@ -58,7 +58,7 @@ function buildHomeModel(master, events, state) {
   const bseCompleted = bse
     .filter((row) => num(row.bse__VA_AMT) != null && num(row.bse__APPLY_AMT_100) != null)
     .sort((a, b) => b.apply_date.localeCompare(a.apply_date));
-  const bseFocus = bseCompleted[0] || bse.sort((a, b) => b.apply_date.localeCompare(a.apply_date))[0];
+  const bseFocus = bse.sort((a, b) => b.apply_date.localeCompare(a.apply_date))[0];
   const bseSeries = [...bseCompleted].sort((a, b) => a.apply_date.localeCompare(b.apply_date));
   const shszApplyEvents = events
     .filter((event) => event.event_date >= today && event.event_type === "apply" && event.board !== "bse")
