@@ -230,7 +230,7 @@ function renderBseProfitCard({ bseRecentListings }) {
         <tbody>
           ${rows.map((row) => {
             const firstDayChange = row.bse__LD_CLOSE_CHANGE || row.ipo__LD_CLOSE_CHANGE;
-            const latestChange = row.bse__FRIST_CLOSE_CHANGE || row.ipo__TOTAL_CHANGE;
+            const latestChange = dbValue(row, "latest_change");
             return `<tr class="company-link-row" data-open-company="${escapeHtml(row.code)}"><td>${escapeHtml(row.name)}</td><td class="${marketToneClass(firstDayChange)}">${formatPct(firstDayChange)}</td><td>${formatMoney(row.bse__PER_SHARES_INCOME)}</td><td class="${marketToneClass(latestChange)}">${formatPct(latestChange)}</td></tr>`;
           }).join("")}
         </tbody>
@@ -605,10 +605,10 @@ function dbValue(row, key) {
       return coalesce(row.bse__LD_CLOSE_CHANGE, row.ipo__LD_CLOSE_CHANGE);
     case "latest_price":
       if (!row.listing_date) return "";
-      return coalesce(row.bse__NEWEST_PRICE, row.bse__CLOSE_PRICE, row.ipo__NEWEST_PRICE, row.ipo__CLOSE_PRICE);
+      return coalesce(row.bse__NEWEST_PRICE, row.ipo__TNEW_PRICE, row.ipo__LATELY_PRICE, row.ipo__NEWEST_PRICE);
     case "latest_change":
       if (!row.listing_date) return "";
-      return coalesce(row.bse__FRIST_CLOSE_CHANGE, row.ipo__TOTAL_CHANGE, row.bse__LD_CLOSE_CHANGE, row.ipo__LD_CLOSE_CHANGE);
+      return coalesce(row.ipo__TCHANGE_RATE);
     default:
       return row[key];
   }
