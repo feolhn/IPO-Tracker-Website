@@ -42,7 +42,14 @@ Build output directory: dist
 Node.js version: 20 or 22
 ```
 
-For daily refresh, create a Cloudflare Pages Deploy Hook and save it in GitHub Actions secrets as `CLOUDFLARE_DEPLOY_HOOK`. The included workflow calls that hook once per day.
+The included GitHub Actions workflow can deploy directly to Cloudflare Pages on push, manual runs, and a daily schedule. Configure these repository secrets:
+
+```text
+CLOUDFLARE_API_TOKEN
+CLOUDFLARE_ACCOUNT_ID
+```
+
+The token needs permission to deploy Cloudflare Pages for this account. If the secrets are not configured, the workflow exits cleanly without deploying.
 
 ## Generated Files
 
@@ -53,4 +60,3 @@ Ignored local outputs:
 - `dist/`
 - `handoff/`
 - `output/`
-
