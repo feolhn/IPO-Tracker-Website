@@ -1,0 +1,7 @@
+node_modules/
+data/
+dist/
+public/data/
+handoff/
+output/
+.DS_Store
