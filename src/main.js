@@ -16,6 +16,7 @@ const BOARD_FILTERS = [
   ["cyb", "创业板"],
   ["bse", "北交所"]
 ];
+const WEEKDAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"];
 const DB_PAGE_SIZE = 12;
 const dbState = {
   board: "all",
@@ -72,12 +73,14 @@ function buildHomeModel(master, events, state) {
     .filter((row) => row.listing_date && num(row.ipo__LD_CLOSE_CHANGE) != null)
     .sort((a, b) => b.listing_date.localeCompare(a.listing_date))
     .slice(0, 5);
+  const calendar = buildIpoCalendar(events, today);
 
   return {
     today,
     state,
     master,
     events,
+    calendar,
     bseFocus,
     bseSeries,
     bseRecentListings: bseCompleted.filter((row) => row.listing_date).slice(0, 3),
@@ -137,6 +140,7 @@ function renderHeader({ today }, view) {
 function renderHomePage(model) {
   return `
     <main class="home-grid">
+      ${renderCalendarPanel(model)}
       ${renderBsePanel(model)}
       ${renderShszPanel(model)}
     </main>
@@ -169,6 +173,82 @@ function openCompanyInDatabase(code) {
   window.location.hash = "database";
   renderApp();
   requestAnimationFrame(() => document.querySelector(".data-main-row.expanded")?.scrollIntoView({ block: "center" }));
+}
+
+function renderCalendarPanel({ calendar, today }) {
+  return `
+    <section class="calendar-bento" aria-label="近 14 日打新日历">
+      <div class="calendar-main">
+        <header class="calendar-title">
+          <div class="calendar-icon" aria-hidden="true"><span></span></div>
+          <div>
+            <h2>近 14 日打新日历</h2>
+            <p>${formatMonthDay(calendar.start)} - ${formatMonthDay(calendar.end)} · 只展示申购和上市</p>
+          </div>
+        </header>
+        <div class="calendar-legend" aria-label="图例">
+          <span><i class="apply"></i>申购</span>
+          <span><i class="listing"></i>上市</span>
+          <em>更新于 ${formatMonthDay(today)} 08:00</em>
+        </div>
+        <div class="calendar-grid">
+          ${WEEKDAY_LABELS.map((label) => `<div class="calendar-weekday">${label}</div>`).join("")}
+          ${calendar.days.map((day) => renderCalendarDay(day, today)).join("")}
+        </div>
+      </div>
+      <aside class="calendar-summary">
+        <span class="summary-eyebrow">本周提醒</span>
+        <div class="summary-counts">
+          <div><b>${calendar.weekApplyCount}</b><span>申购</span></div>
+          <div><b>${calendar.weekListingCount}</b><span>上市</span></div>
+        </div>
+        ${renderCalendarSummaryItem("下一只申购", calendar.nextApply)}
+        ${renderCalendarSummaryItem("下一只上市", calendar.nextListing)}
+        <p class="muted-note">点击公司可跳转到新股数据库对应行。</p>
+      </aside>
+    </section>
+  `;
+}
+
+function renderCalendarDay(day, today) {
+  const visibleEvents = day.events.slice(0, 3);
+  const hiddenCount = day.events.length - visibleEvents.length;
+  return `
+    <div class="calendar-day ${day.date === today ? "today" : ""}">
+      <div class="calendar-date"><time>${formatMonthDay(day.date)}</time>${day.date === today ? "<span>今日</span>" : ""}</div>
+      <div class="calendar-events">
+        ${visibleEvents.map(renderCalendarEvent).join("")}
+        ${hiddenCount > 0 ? `<div class="calendar-more">+${hiddenCount} 项</div>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function renderCalendarEvent(event) {
+  return `
+    <button class="calendar-event ${event.event_type}" type="button" data-open-company="${escapeHtml(event.code)}">
+      <b>${escapeHtml(event.name)}</b>
+      <span><em class="board ${event.board}">${boardLabel(event.board)}</em><i>${escapeHtml(event.event_label)}</i></span>
+    </button>
+  `;
+}
+
+function renderCalendarSummaryItem(label, event) {
+  if (!event) {
+    return `
+      <div class="summary-item empty">
+        <span>${label}</span>
+        <b>暂无</b>
+      </div>
+    `;
+  }
+  return `
+    <button class="summary-item company-link-row" type="button" data-open-company="${escapeHtml(event.code)}">
+      <span>${label}</span>
+      <b>${escapeHtml(event.name)}</b>
+      <small>${formatMonthDay(event.event_date)} · ${boardLabel(event.board)} · ${escapeHtml(event.event_label)}</small>
+    </button>
+  `;
 }
 
 function renderBsePanel(model) {
@@ -640,6 +720,54 @@ function sortMark(key) {
   return dbState.sortDir === "asc" ? "↑" : "↓";
 }
 
+function buildIpoCalendar(events, today) {
+  const start = weekStart(today);
+  const end = addDays(start, 13);
+  const visibleTypes = new Set(["apply", "listing"]);
+  const calendarEvents = events
+    .filter((event) => visibleTypes.has(event.event_type) && event.event_date >= start && event.event_date <= end)
+    .sort(compareCalendarEvents);
+  const days = Array.from({ length: 14 }, (_, index) => {
+    const date = addDays(start, index);
+    return {
+      date,
+      events: calendarEvents.filter((event) => event.event_date === date)
+    };
+  });
+  const thisWeekStart = weekStart(today);
+  const thisWeekEnd = weekEnd(today);
+  const thisWeekEvents = events.filter((event) => visibleTypes.has(event.event_type) && event.event_date >= thisWeekStart && event.event_date <= thisWeekEnd);
+  const futureEvents = events
+    .filter((event) => visibleTypes.has(event.event_type) && event.event_date >= today)
+    .sort(compareCalendarEvents);
+
+  return {
+    start,
+    end,
+    days,
+    weekApplyCount: uniqueEventCount(thisWeekEvents, "apply"),
+    weekListingCount: uniqueEventCount(thisWeekEvents, "listing"),
+    nextApply: futureEvents.find((event) => event.event_type === "apply"),
+    nextListing: futureEvents.find((event) => event.event_type === "listing")
+  };
+}
+
+function compareCalendarEvents(a, b) {
+  const dateOrder = a.event_date.localeCompare(b.event_date);
+  if (dateOrder) return dateOrder;
+  const typeOrder = eventTypeRank(a.event_type) - eventTypeRank(b.event_type);
+  if (typeOrder) return typeOrder;
+  return String(a.code).localeCompare(String(b.code));
+}
+
+function eventTypeRank(type) {
+  return type === "apply" ? 0 : 1;
+}
+
+function uniqueEventCount(events, type) {
+  return new Set(events.filter((event) => event.event_type === type).map((event) => event.code)).size;
+}
+
 function issueWeeks(rows, today, count) {
   const end = weekEnd(today);
   const weeks = [];
@@ -716,6 +844,13 @@ function initBseFundingChart(rows) {
   });
 
   window.addEventListener("resize", () => chart.resize(), { passive: true });
+}
+
+function weekStart(date) {
+  const d = new Date(`${date}T00:00:00Z`);
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() - (day - 1));
+  return d.toISOString().slice(0, 10);
 }
 
 function weekEnd(date) {
